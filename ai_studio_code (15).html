@@ -1,0 +1,2213 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Ludo King Pro - Smart Home Trays & Counter</title>
+  <!-- সুপার-ফাস্ট রিয়েলটাইম ফ্রি ক্লাউড সার্ভার লাইব্রেরি (MQTT over WSS) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/5.3.5/mqtt.min.js"></script>
+  <style>
+    :root {
+      --bg-dark: #0a1128;
+      --board-bg: #ffffff;
+      --gold: #facc15;
+      --gold-dark: #ca8a04;
+      --red: #ef4444;
+      --green: #22c55e;
+      --yellow: #eab308;
+      --blue: #3b82f6;
+      --cell-border: #cbd5e1;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    html, body {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh; height: 100dvh;
+      overflow: hidden;
+      overscroll-behavior: none;
+      background: radial-gradient(circle at center, #1e3a8a 0%, #0a1128 100%);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: #fff;
+    }
+
+    /* লবি স্ক্রিন */
+    .lobby-screen {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%; height: 100dvh;
+      background: radial-gradient(circle at top, #1e40af 0%, #0a1128 90%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px;
+      z-index: 50;
+    }
+
+    .lobby-header {
+      width: 100%;
+      max-width: 440px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1.5px solid rgba(250, 204, 21, 0.5);
+      padding: 6px 14px;
+      border-radius: 25px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.6);
+    }
+    .user-profile {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .avatar-circle {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #f59e0b, #ef4444);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      border: 2px solid #fff;
+    }
+    .coin-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: #0f172a;
+      border: 1.5px solid var(--gold);
+      padding: 4px 10px;
+      border-radius: 20px;
+    }
+    .coin-pill .coin-amount {
+      color: var(--gold);
+      font-weight: 900;
+      font-size: 14px;
+    }
+    .add-coin-btn {
+      background: #22c55e;
+      color: #fff;
+      border: none;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      font-weight: 900;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    .lobby-guide-bar {
+      width: 100%;
+      max-width: 440px;
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(250, 204, 21, 0.4);
+      border-radius: 16px;
+      padding: 5px 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .guide-tag {
+      background: linear-gradient(135deg, #f59e0b, #ef4444);
+      color: #fff;
+      padding: 2px 7px;
+      border-radius: 8px;
+      font-size: 9px;
+      font-weight: 900;
+    }
+    .guide-text {
+      font-size: 10px;
+      font-weight: 700;
+      color: #fde047;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      transition: opacity 0.25s ease;
+    }
+
+    .lobby-banner {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 4px 0;
+    }
+    .game-logo {
+      font-size: clamp(24px, 6vw, 30px);
+      font-weight: 900;
+      letter-spacing: 2px;
+      background: linear-gradient(180deg, #fde047 20%, #ea580c 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      text-transform: uppercase;
+    }
+    .game-sub {
+      font-size: 9px;
+      font-weight: 800;
+      letter-spacing: 2.5px;
+      color: #93c5fd;
+    }
+
+    .lobby-cards-grid {
+      width: 100%;
+      max-width: 440px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      flex: 1;
+      max-height: 52dvh;
+      margin: 6px 0;
+    }
+
+    .ludo-card {
+      background: linear-gradient(145deg, #1e293b, #0f172a);
+      border: 1.5px solid rgba(255, 255, 255, 0.12);
+      border-radius: 14px;
+      padding: 8px 4px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-evenly;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.15s ease;
+    }
+    .ludo-card:active { transform: scale(0.95); border-color: var(--gold); }
+    .ludo-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+    .card-vs-ai::before { background: #10b981; }
+    .card-2p::before { background: #ef4444; }
+    .card-4p::before { background: #3b82f6; }
+    .card-online::before { background: linear-gradient(90deg, #8b5cf6, #ec4899); }
+    .card-3p::before { background: #f59e0b; }
+    .card-bonus::before { background: var(--gold); }
+
+    .card-icon { font-size: 26px; }
+    .card-title { font-size: 10px; font-weight: 800; color: #f1f5f9; text-transform: uppercase; }
+    .card-badge { font-size: 8px; font-weight: 700; color: #94a3b8; }
+    .card-fee {
+      background: rgba(0, 0, 0, 0.6);
+      border: 1px solid rgba(250, 204, 21, 0.4);
+      color: var(--gold);
+      font-size: 8.5px;
+      font-weight: 800;
+      padding: 2px 6px;
+      border-radius: 8px;
+    }
+
+    .lobby-footer {
+      width: 100%;
+      max-width: 440px;
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+    }
+    .footer-btn {
+      background: rgba(30, 41, 59, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 12px;
+      padding: 6px 14px;
+      font-size: 10.5px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    /* গেম স্ক্রিন */
+    .app-viewport {
+      width: 100%;
+      height: 100%;
+      height: 100dvh;
+      max-width: 440px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 6px;
+      position: relative;
+    }
+
+    .top-bar {
+      width: 100%;
+      height: 36px;
+      background: rgba(15, 23, 42, 0.95);
+      border-radius: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 12px;
+      border: 1.5px solid rgba(250, 204, 21, 0.4);
+      font-size: 11px;
+      font-weight: 800;
+    }
+    .top-btn {
+      cursor: pointer;
+      background: rgba(255,255,255,0.12);
+      padding: 4px 10px;
+      border-radius: 10px;
+    }
+    .exit-btn { background: #b91c1c; }
+
+    .dice-bar {
+      width: min(98vw, 410px);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 2px;
+      gap: 8px;
+    }
+
+    .player-card {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: linear-gradient(145deg, #1e293b, #090e1a);
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      border-radius: 16px;
+      padding: 5px 8px;
+      width: 49%;
+      max-width: 190px;
+      transition: all 0.2s ease;
+    }
+    .player-card.hidden { visibility: hidden !important; pointer-events: none; }
+    .player-card.active-turn {
+      border-color: #38bdf8;
+      transform: scale(1.04);
+      box-shadow: 0 0 16px rgba(56, 189, 248, 0.85);
+      z-index: 10;
+    }
+
+    .corner-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      border: 2px solid #fff;
+      flex-shrink: 0;
+    }
+    .av-red { background: linear-gradient(135deg, #f87171, #b91c1c); }
+    .av-blue { background: linear-gradient(135deg, #60a5fa, #1d4ed8); }
+    .av-green { background: linear-gradient(135deg, #4ade80, #15803d); }
+    .av-yellow { background: linear-gradient(135deg, #fde047, #ca8a04); }
+
+    .player-info {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-width: 0;
+    }
+    .player-name {
+      font-size: 11px;
+      font-weight: 900;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .player-status {
+      font-size: 8px;
+      color: #38bdf8;
+      font-weight: 800;
+    }
+    .player-home-score {
+      font-size: 8.5px;
+      color: #fde047;
+      font-weight: 900;
+      letter-spacing: 0.3px;
+      display: flex;
+      align-items: center;
+      gap: 3px;
+    }
+
+    .dice {
+      width: 50px;
+      height: 50px;
+      background: radial-gradient(circle at 35% 35%, #ffffff, #e2e8f0);
+      border-radius: 12px;
+      border: 1.5px solid #cbd5e1;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(3, 1fr);
+      padding: 4px;
+      cursor: pointer;
+      box-shadow: inset 0 -4px 0 #94a3b8, 0 6px 12px rgba(0,0,0,0.5);
+      flex-shrink: 0;
+    }
+    .dice.disabled { cursor: not-allowed; opacity: 0.35; filter: grayscale(0.8); }
+    .dice.rolling { animation: diceShake 0.12s infinite; }
+    @keyframes diceShake {
+      0% { transform: rotate(0deg) scale(1.06); }
+      50% { transform: rotate(10deg) scale(1.1); }
+      100% { transform: rotate(-10deg) scale(1.06); }
+    }
+    .pip {
+      width: 8px;
+      height: 8px;
+      background: #0f172a;
+      border-radius: 50%;
+      margin: auto;
+      visibility: hidden;
+    }
+
+    /* বোর্ড কনটেইনার */
+    .board-wrapper {
+      flex: 1;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 0;
+    }
+
+    .ludo-board {
+      width: min(96vw, calc(100dvh - 180px), 385px);
+      height: min(96vw, calc(100dvh - 180px), 385px);
+      aspect-ratio: 1 / 1;
+      background: var(--board-bg);
+      border: 4px solid #ffffff;
+      border-radius: 14px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.85);
+      display: grid;
+      grid-template-columns: repeat(15, 1fr);
+      grid-template-rows: repeat(15, 1fr);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .c {
+      background: #ffffff;
+      border: 0.5px solid var(--cell-border);
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+    }
+
+    .yard { position: relative; padding: 5px; }
+    .yard-red { grid-area: 1 / 1 / 7 / 7; background: var(--red); }
+    .yard-blue { grid-area: 1 / 10 / 7 / 16; background: var(--blue); }
+    .yard-green { grid-area: 10 / 1 / 16 / 7; background: var(--green); }
+    .yard-yellow { grid-area: 10 / 10 / 16 / 16; background: var(--yellow); }
+
+    .yard-inner {
+      width: 100%; height: 100%;
+      background: #ffffff;
+      border-radius: 10px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      padding: 6px;
+      gap: 6px;
+    }
+    .yard-hole {
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: inset 0 2px 4px rgba(0,0,0,0.25);
+    }
+    .yard-red .yard-hole { background: #fecaca; }
+    .yard-blue .yard-hole { background: #bfdbfe; }
+    .yard-green .yard-hole { background: #bbf7d0; }
+    .yard-yellow .yard-hole { background: #fef08a; }
+
+    /* পাকা ঘর (Home Center) */
+    .home-center {
+      grid-area: 7 / 7 / 10 / 10;
+      position: relative;
+      background: #0f172a;
+      overflow: hidden;
+      border: 0.5px solid var(--cell-border);
+    }
+    .tri { position: absolute; width: 100%; height: 100%; }
+    .tri-red { background: var(--red); clip-path: polygon(0 0, 50% 50%, 0 100%); }
+    .tri-blue { background: var(--blue); clip-path: polygon(0 0, 50% 50%, 100% 0); }
+    .tri-yellow { background: var(--yellow); clip-path: polygon(100% 0, 50% 50%, 100% 100%); }
+    .tri-green { background: var(--green); clip-path: polygon(0 100%, 50% 50%, 100% 100%); }
+
+    .center-crown {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 13px;
+      z-index: 12;
+      filter: drop-shadow(0 0 3px rgba(0,0,0,0.8));
+    }
+
+    .goal-pocket {
+      position: absolute;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 15;
+      pointer-events: none;
+    }
+    #goal-red { top: 50%; left: 16%; transform: translate(-50%, -50%); }
+    #goal-blue { top: 16%; left: 50%; transform: translate(-50%, -50%); }
+    #goal-yellow { top: 50%; right: 16%; transform: translate(50%, -50%); }
+    #goal-green { bottom: 16%; left: 50%; transform: translate(-50%, 50%); }
+
+    .home-tray {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      grid-template-rows: repeat(2, 1fr);
+      gap: 2px;
+      background: rgba(0, 0, 0, 0.45);
+      padding: 2.5px;
+      border-radius: 7px;
+      border: 1px solid rgba(255, 255, 255, 0.5);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+    }
+    .home-slot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.2);
+      border: 0.5px dashed rgba(255, 255, 255, 0.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .home-slot .token {
+      width: 100% !important;
+      height: 100% !important;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.7);
+    }
+
+    .home-pill {
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid var(--gold);
+      color: var(--gold);
+      font-size: 7.5px;
+      font-weight: 900;
+      padding: 0.5px 4px;
+      border-radius: 6px;
+      margin-top: 1.5px;
+      letter-spacing: 0.5px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.6);
+      white-space: nowrap;
+    }
+
+    .path-red { background: var(--red) !important; }
+    .path-green { background: var(--green) !important; }
+    .path-blue { background: var(--blue) !important; }
+    .path-yellow { background: var(--yellow) !important; }
+
+    .star-bg {
+      position: absolute;
+      font-size: 13px;
+      color: #f59e0b;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    /* গুটি ডিজাইন */
+    .token-container {
+      position: absolute;
+      width: 100%; height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    .token {
+      border-radius: 50%;
+      cursor: pointer;
+      position: relative;
+      box-shadow: 0 3px 6px rgba(0,0,0,0.6), inset 0 2px 3px rgba(255,255,255,0.8);
+      border: 1.5px solid #ffffff;
+      pointer-events: auto;
+      flex-shrink: 0;
+      transition: transform 0.12s ease;
+    }
+    .token-red { background: radial-gradient(circle at 35% 35%, #f87171, #b91c1c); }
+    .token-green { background: radial-gradient(circle at 35% 35%, #4ade80, #15803d); }
+    .token-yellow { background: radial-gradient(circle at 35% 35%, #fde047, #a16207); }
+    .token-blue { background: radial-gradient(circle at 35% 35%, #60a5fa, #1d4ed8); }
+
+    .yard-hole .token { width: 62% !important; height: 62% !important; }
+
+    .token-count-1 { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+    .token-count-1 .token { width: 88% !important; height: 88% !important; }
+
+    .token-count-2 { position: relative; width: 100%; height: 100%; }
+    .token-count-2 .token { width: 70% !important; height: 70% !important; position: absolute; }
+    .token-count-2 .token:nth-child(1) { top: 0px; left: 0px; z-index: 6; }
+    .token-count-2 .token:nth-child(2) { bottom: 0px; right: 0px; z-index: 7; }
+
+    .token-count-3 { position: relative; width: 100%; height: 100%; }
+    .token-count-3 .token { width: 58% !important; height: 58% !important; position: absolute; }
+    .token-count-3 .token:nth-child(1) { top: 0px; left: 0px; }
+    .token-count-3 .token:nth-child(2) { top: 0px; right: 0px; }
+    .token-count-3 .token:nth-child(3) { bottom: 0px; left: 20%; }
+
+    .token-count-4 {
+      display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr;
+      width: 100%; height: 100%; padding: 1px; gap: 1px;
+    }
+    .token-count-4 .token { width: 90% !important; height: 90% !important; margin: auto; }
+
+    .token.playable {
+      animation: tokenPulse 0.45s infinite alternate;
+      z-index: 30 !important;
+    }
+    @keyframes tokenPulse {
+      0% { transform: scale(1.05); filter: drop-shadow(0 0 3px #fff); }
+      100% { transform: scale(1.25); filter: drop-shadow(0 0 8px #38bdf8); }
+    }
+    .token.hopping {
+      transform: translateY(-8px) scale(1.35) !important;
+      z-index: 50 !important;
+    }
+
+    /* মোডাল */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; width: 100vw; height: 100vh;
+      background: rgba(11, 17, 32, 0.94);
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      padding: 16px;
+    }
+    .modal-card {
+      width: 100%;
+      max-width: 320px;
+      background: #1e293b;
+      border: 2px solid var(--gold);
+      border-radius: 20px;
+      padding: 18px 16px;
+      text-align: center;
+      color: #fff;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+    }
+    .modal-title { font-size: 17px; font-weight: 800; margin-bottom: 8px; color: var(--gold); }
+    .modal-btn {
+      width: 100%;
+      padding: 10px;
+      border: none;
+      border-radius: 12px;
+      font-weight: 800;
+      font-size: 13px;
+      cursor: pointer;
+      margin-top: 8px;
+    }
+    .btn-confirm { background: #22c55e; color: #fff; }
+    .btn-primary { background: #3b82f6; color: #fff; }
+    .btn-danger { background: #ef4444; color: #fff; }
+    .btn-cancel { background: #475569; color: #fff; }
+
+    .player-select-btn {
+      padding: 8px 14px;
+      border: 1.5px solid rgba(255,255,255,0.2);
+      border-radius: 10px;
+      background: #0f172a;
+      color: #fff;
+      font-weight: 800;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    .player-select-btn.active {
+      border-color: var(--gold);
+      background: #ca8a04;
+    }
+
+    canvas#confetti {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      pointer-events: none; z-index: 99;
+    }
+  </style>
+</head>
+<body>
+
+  <canvas id="confetti"></canvas>
+
+  <!-- লবি স্ক্রিন -->
+  <div class="lobby-screen" id="lobbyScreen">
+    <div class="lobby-header">
+      <div class="user-profile">
+        <div class="avatar-circle">👑</div>
+        <div>
+          <div class="user-title">Player 1</div>
+          <div style="font-size: 8.5px; color: #38bdf8;">ROYAL VIP</div>
+        </div>
+      </div>
+      <div class="coin-pill">
+        <span>🪙</span>
+        <span class="coin-amount" id="lobbyCoins">1,000</span>
+        <button class="add-coin-btn" onclick="claimDailyReward()">+</button>
+      </div>
+    </div>
+
+    <div class="lobby-guide-bar">
+      <span class="guide-tag">GUIDE</span>
+      <span class="guide-text" id="guideText">ENTER ALL 4 TOKENS INTO HOME CENTER TO WIN!</span>
+    </div>
+
+    <div class="lobby-banner">
+      <div class="game-logo">LUDO KING PRO</div>
+      <div class="game-sub">ROYAL MULTIPLAYER</div>
+    </div>
+
+    <div class="lobby-cards-grid">
+      <div class="ludo-card card-vs-ai" onclick="startLudoGame('AI', 100, 200)">
+        <div class="card-icon">🤖</div>
+        <div class="card-title">VS BOT</div>
+        <div class="card-badge">Single Player</div>
+        <div class="card-fee">🪙 100 Entry</div>
+      </div>
+
+      <div class="ludo-card card-2p" onclick="startLudoGame('2P', 250, 500)">
+        <div class="card-icon">👥</div>
+        <div class="card-title">2 PLAYERS</div>
+        <div class="card-badge">Pass & Play</div>
+        <div class="card-fee">🪙 250 Entry</div>
+      </div>
+
+      <div class="ludo-card card-4p" onclick="startLudoGame('4P', 500, 2000)">
+        <div class="card-icon">👑</div>
+        <div class="card-title">4 PLAYERS</div>
+        <div class="card-badge">Classic Quad</div>
+        <div class="card-fee">🪙 500 Entry</div>
+      </div>
+
+      <div class="ludo-card card-online" onclick="openOnlineSubModal()">
+        <div class="card-icon">🌐</div>
+        <div class="card-title">ONLINE ROOM</div>
+        <div class="card-badge">2 or 3 Players</div>
+        <div class="card-fee">🪙 250 Entry</div>
+      </div>
+
+      <div class="ludo-card card-3p" onclick="startLudoGame('3P', 300, 900)">
+        <div class="card-icon">🎯</div>
+        <div class="card-title">3 PLAYERS</div>
+        <div class="card-badge">Triple Fight</div>
+        <div class="card-fee">🪙 300 Entry</div>
+      </div>
+
+      <div class="ludo-card card-bonus" onclick="claimDailyReward()">
+        <div class="card-icon">🎁</div>
+        <div class="card-title">DAILY GIFT</div>
+        <div class="card-badge">Free Coins</div>
+        <div class="card-fee" style="color:#4ade80;">🪙 500 Coins</div>
+      </div>
+    </div>
+
+    <div class="lobby-footer">
+      <div class="footer-btn" onclick="toggleAudio()" id="lobbySoundBtn">🔊 Sound: ON</div>
+      <div class="footer-btn" onclick="showRuleModal()">📜 Game Rules</div>
+    </div>
+  </div>
+
+  <!-- গেম স্ক্রিন -->
+  <div class="app-viewport" id="gameScreen" style="display: none;">
+    <div class="top-bar">
+      <div class="top-btn exit-btn" onclick="confirmExitGame()">🚪 Exit</div>
+      <div style="color:var(--gold);">🏆 Pot: 🪙 <span id="matchPotVal">0</span></div>
+      <div class="top-btn" onclick="toggleAudio()" id="gameSoundBtn">🔊</div>
+    </div>
+
+    <!-- টপ ২ কোণা: লাল (বামে) এবং নীল (ডানে) -->
+    <div class="dice-bar">
+      <div id="card-red" class="player-card active-turn">
+        <div class="corner-avatar av-red">👑</div>
+        <div class="player-info">
+          <span class="player-name" id="name-red">RED</span>
+          <span class="player-status" id="st-red">YOUR TURN</span>
+          <span class="player-home-score" id="score-red">🏡 HOME: 0/4</span>
+        </div>
+        <div class="dice" id="dice-red" onclick="handleDiceClick('red')">
+          <div class="pip" id="rd1"></div><div class="pip" id="rd2"></div><div class="pip" id="rd3"></div>
+          <div class="pip" id="rd4"></div><div class="pip" id="rd5"></div><div class="pip" id="rd6"></div>
+          <div class="pip" id="rd7"></div><div class="pip" id="rd8"></div><div class="pip" id="rd9"></div>
+        </div>
+      </div>
+
+      <div id="card-blue" class="player-card hidden">
+        <div class="dice disabled" id="dice-blue" onclick="handleDiceClick('blue')">
+          <div class="pip" id="bd1"></div><div class="pip" id="bd2"></div><div class="pip" id="bd3"></div>
+          <div class="pip" id="bd4"></div><div class="pip" id="bd5"></div><div class="pip" id="bd6"></div>
+          <div class="pip" id="bd7"></div><div class="pip" id="bd8"></div><div class="pip" id="bd9"></div>
+        </div>
+        <div class="player-info" style="text-align: right;">
+          <span class="player-name" id="name-blue">BLUE</span>
+          <span class="player-status" id="st-blue">WAITING</span>
+          <span class="player-home-score" id="score-blue" style="justify-content: flex-end;">🏡 HOME: 0/4</span>
+        </div>
+        <div class="corner-avatar av-blue">🔷</div>
+      </div>
+    </div>
+
+    <!-- ১৫×১৫ বোর্ড -->
+    <div class="board-wrapper">
+      <div class="ludo-board" id="board">
+        <div class="yard yard-red">
+          <div class="yard-inner">
+            <div class="yard-hole" id="hole-R0"></div><div class="yard-hole" id="hole-R1"></div>
+            <div class="yard-hole" id="hole-R2"></div><div class="yard-hole" id="hole-R3"></div>
+          </div>
+        </div>
+        <div class="yard yard-blue">
+          <div class="yard-inner">
+            <div class="yard-hole" id="hole-B0"></div><div class="yard-hole" id="hole-B1"></div>
+            <div class="yard-hole" id="hole-B2"></div><div class="yard-hole" id="hole-B3"></div>
+          </div>
+        </div>
+        <div class="yard yard-green">
+          <div class="yard-inner">
+            <div class="yard-hole" id="hole-G0"></div><div class="yard-hole" id="hole-G1"></div>
+            <div class="yard-hole" id="hole-G2"></div><div class="yard-hole" id="hole-G3"></div>
+          </div>
+        </div>
+        <div class="yard yard-yellow">
+          <div class="yard-inner">
+            <div class="yard-hole" id="hole-Y0"></div><div class="yard-hole" id="hole-Y1"></div>
+            <div class="yard-hole" id="hole-Y2"></div><div class="yard-hole" id="hole-Y3"></div>
+          </div>
+        </div>
+
+        <!-- পাকা ঘর (Home Center) -->
+        <div class="home-center">
+          <div class="tri tri-red"></div>
+          <div class="tri tri-blue"></div>
+          <div class="tri tri-yellow"></div>
+          <div class="tri tri-green"></div>
+          <div class="center-crown">👑</div>
+
+          <!-- লাল পাকা ঘর -->
+          <div class="goal-pocket" id="goal-red">
+            <div class="home-tray" id="tray-red">
+              <div class="home-slot" id="slot-red-0"></div><div class="home-slot" id="slot-red-1"></div>
+              <div class="home-slot" id="slot-red-2"></div><div class="home-slot" id="slot-red-3"></div>
+            </div>
+            <div class="home-pill" id="pill-red">0/4</div>
+          </div>
+
+          <!-- নীল পাকা ঘর -->
+          <div class="goal-pocket" id="goal-blue">
+            <div class="home-tray" id="tray-blue">
+              <div class="home-slot" id="slot-blue-0"></div><div class="home-slot" id="slot-blue-1"></div>
+              <div class="home-slot" id="slot-blue-2"></div><div class="home-slot" id="slot-blue-3"></div>
+            </div>
+            <div class="home-pill" id="pill-blue">0/4</div>
+          </div>
+
+          <!-- হলুদ পাকা ঘর -->
+          <div class="goal-pocket" id="goal-yellow">
+            <div class="home-tray" id="tray-yellow">
+              <div class="home-slot" id="slot-yellow-0"></div><div class="home-slot" id="slot-yellow-1"></div>
+              <div class="home-slot" id="slot-yellow-2"></div><div class="home-slot" id="slot-yellow-3"></div>
+            </div>
+            <div class="home-pill" id="pill-yellow">0/4</div>
+          </div>
+
+          <!-- সবুজ পাকা ঘর -->
+          <div class="goal-pocket" id="goal-green">
+            <div class="home-tray" id="tray-green">
+              <div class="home-slot" id="slot-green-0"></div><div class="home-slot" id="slot-green-1"></div>
+              <div class="home-slot" id="slot-green-2"></div><div class="home-slot" id="slot-green-3"></div>
+            </div>
+            <div class="home-pill" id="pill-green">0/4</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- বটম ২ কোণা: সবুজ (বামে) এবং হলুদ (ডানে) -->
+    <div class="dice-bar">
+      <div id="card-green" class="player-card">
+        <div class="corner-avatar av-green" id="av-green-icon">👥</div>
+        <div class="player-info">
+          <span class="player-name" id="name-green">GREEN</span>
+          <span class="player-status" id="st-green">WAITING</span>
+          <span class="player-home-score" id="score-green">🏡 HOME: 0/4</span>
+        </div>
+        <div class="dice disabled" id="dice-green" onclick="handleDiceClick('green')">
+          <div class="pip" id="gd1"></div><div class="pip" id="gd2"></div><div class="pip" id="gd3"></div>
+          <div class="pip" id="gd4"></div><div class="pip" id="gd5"></div><div class="pip" id="gd6"></div>
+          <div class="pip" id="gd7"></div><div class="pip" id="gd8"></div><div class="pip" id="gd9"></div>
+        </div>
+      </div>
+
+      <div id="card-yellow" class="player-card hidden">
+        <div class="dice disabled" id="dice-yellow" onclick="handleDiceClick('yellow')">
+          <div class="pip" id="yd1"></div><div class="pip" id="yd2"></div><div class="pip" id="yd3"></div>
+          <div class="pip" id="yd4"></div><div class="pip" id="yd5"></div><div class="pip" id="yd6"></div>
+          <div class="pip" id="yd7"></div><div class="pip" id="yd8"></div><div class="pip" id="yd9"></div>
+        </div>
+        <div class="player-info" style="text-align: right;">
+          <span class="player-name" id="name-yellow">YELLOW</span>
+          <span class="player-status" id="st-yellow">WAITING</span>
+          <span class="player-home-score" id="score-yellow" style="justify-content: flex-end;">🏡 HOME: 0/4</span>
+        </div>
+        <div class="corner-avatar av-yellow">⭐</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- নোটিশ মোডাল -->
+  <div class="modal-overlay" id="customNoticeModal" style="display: none;">
+    <div class="modal-card">
+      <div style="font-size: 38px; margin-bottom: 6px;" id="noticeIcon">🔔</div>
+      <div class="modal-title" id="noticeTitle">NOTICE</div>
+      <p style="font-size: 12.5px; color: #cbd5e1; line-height: 1.5; margin-bottom: 10px;" id="noticeMessage">Message</p>
+      <button class="modal-btn btn-confirm" onclick="closeCustomNotice()">OK, Got It</button>
+    </div>
+  </div>
+
+  <!-- অনলাইন সাব-মোডাল -->
+  <div class="modal-overlay" id="onlineModal" style="display: none;">
+    <div class="modal-card">
+      <div style="font-size: 36px; margin-bottom: 4px;">🌐</div>
+      <div class="modal-title">Play Online Room</div>
+      <p style="font-size: 11px; color:#94a3b8; margin-bottom: 10px;">Select Room Capacity:</p>
+      
+      <div style="display:flex; justify-content:center; gap:10px; margin-bottom:12px;">
+        <button class="player-select-btn active" id="btnMode2P" onclick="setOnlineTargetCount(2)">2 Players</button>
+        <button class="player-select-btn" id="btnMode3P" onclick="setOnlineTargetCount(3)">3 Players</button>
+      </div>
+
+      <button class="modal-btn btn-confirm" onclick="createOnlineRoom()">➕ Create Room</button>
+      
+      <div style="margin: 10px 0 6px 0; border-top: 1px solid rgba(255,255,255,0.15); padding-top: 8px;">
+        <input type="number" id="joinCodeInput" style="width:100%; padding:9px; border-radius:10px; margin-bottom: 8px; text-align:center; font-weight:bold; font-size:16px; border: 1.5px solid var(--gold); outline: none; background: #0f172a; color:#fff;" placeholder="Enter 4-Digit Room ID">
+        <button class="modal-btn btn-primary" onclick="joinOnlineRoom()">🤝 Join Room</button>
+      </div>
+
+      <button class="modal-btn btn-cancel" onclick="closeOnlineModal()">⬅ Back to Lobby</button>
+    </div>
+  </div>
+
+  <!-- রুম কোড ও ওয়েটিং স্ক্রিন -->
+  <div class="modal-overlay" id="roomCodeModal" style="display: none;">
+    <div class="modal-card">
+      <div style="font-size: 36px; margin-bottom: 4px;">🎉</div>
+      <div class="modal-title" id="roomModalTitle">Room Created!</div>
+      <p style="font-size: 11px; color: #94a3b8;">Share this 4-digit code with your friends:</p>
+      <div style="background: rgba(0,0,0,0.6); border: 2px dashed var(--gold); padding: 10px; border-radius: 12px; margin: 10px 0; cursor: pointer;" onclick="copyRoomCode()">
+        <span style="font-size: 26px; font-weight: 900; letter-spacing: 4px; color: var(--gold);" id="displayRoomCode">0000</span>
+        <div style="font-size: 9px; color: #38bdf8; margin-top: 4px;">(Tap to Copy)</div>
+      </div>
+      <p style="font-size: 12px; color: #fde047; font-weight: 800;" id="waitingStatusText">Waiting for players (1/2)...</p>
+      <button class="modal-btn btn-danger" style="margin-top:12px;" onclick="cancelRoomCreation()">Cancel Room</button>
+    </div>
+  </div>
+
+  <!-- এক্সিট কনফার্মেশন -->
+  <div class="modal-overlay" id="exitConfirmModal" style="display: none;">
+    <div class="modal-card">
+      <div style="font-size: 38px; margin-bottom: 6px;">⚠️</div>
+      <div class="modal-title" style="color:#ef4444;">LEAVE MATCH?</div>
+      <p style="font-size: 12px; color:#cbd5e1; margin-bottom: 12px;">Leaving now will forfeit your entry fee!</p>
+      <button class="modal-btn btn-danger" onclick="forfeitGame()">Yes, Leave</button>
+      <button class="modal-btn btn-cancel" onclick="closeExitModal()">Continue Playing</button>
+    </div>
+  </div>
+
+  <!-- জয়লাভ মোডাল -->
+  <div class="modal-overlay" id="winModal" style="display: none;">
+    <div class="modal-card">
+      <div style="font-size: 50px; margin-bottom: 6px;">🏆</div>
+      <div class="modal-title" id="winnerText">VICTORY!</div>
+      <div style="background: rgba(0,0,0,0.5); padding: 10px; border-radius: 12px; margin-bottom: 12px; border: 1px solid var(--gold);">
+        <div style="font-size: 11px; color: #94a3b8;">PRIZE WON</div>
+        <div style="font-size: 20px; font-weight: 900; color: var(--gold);" id="prizeWonDisplay">+🪙 0 COINS</div>
+      </div>
+      <button class="modal-btn btn-confirm" onclick="returnToLobby()">Return to Lobby</button>
+    </div>
+  </div>
+
+  <!-- রুলস মোডাল -->
+  <div class="modal-overlay" id="rulesModal" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-title">📜 LUDO RULES</div>
+      <p style="font-size: 11.5px; text-align: left; color:#cbd5e1; line-height: 1.6; margin-bottom: 12px;">
+        • <b>Roll 6:</b> Unlocks a token & gives a bonus roll.<br>
+        • <b>Capture:</b> Landing on opponent sends them home.<br>
+        • <b>Safe Stars (★):</b> Tokens on stars cannot be killed.<br>
+        • <b>Home Center:</b> Look at the 4 slots and live score counter.<br>
+        • <b>Online:</b> Fast Realtime Cloud Server — 100% Synced!
+      </p>
+      <button class="modal-btn btn-cancel" onclick="closeRulesModal()">Got It</button>
+    </div>
+  </div>
+
+  <script>
+    /* ========================================================
+       ১. লাইভ গাইড ও নোটিশ
+    ======================================================== */
+    const englishTips = [
+      "ENTER ALL 4 TOKENS INTO HOME CENTER TO WIN!",
+      "TIP: CAPTURING AN OPPONENT GRANTS A BONUS ROLL!",
+      "STAR SQUARES (★) ARE 100% SAFE FROM ATTACKS!",
+      "CHECK LIVE HOME COUNTER (0/4) ON CORNERS & CENTER!",
+      "CLAIM 500 FREE COINS DAILY • COME BACK EVERY 24H!"
+    ];
+    let tipIdx = 0;
+    setInterval(() => {
+      const el = document.getElementById('guideText');
+      if (el) {
+        el.style.opacity = '0';
+        setTimeout(() => {
+          tipIdx = (tipIdx + 1) % englishTips.length;
+          el.innerText = englishTips[tipIdx];
+          el.style.opacity = '1';
+        }, 250);
+      }
+    }, 4000);
+
+    let noticeCallback = null;
+    function showNotice(title, message, icon = '🔔', callback = null) {
+      document.getElementById('noticeTitle').innerText = title;
+      document.getElementById('noticeMessage').innerText = message;
+      document.getElementById('noticeIcon').innerText = icon;
+      document.getElementById('customNoticeModal').style.display = 'flex';
+      noticeCallback = callback;
+    }
+    function closeCustomNotice() {
+      document.getElementById('customNoticeModal').style.display = 'none';
+      if (noticeCallback) {
+        const cb = noticeCallback;
+        noticeCallback = null;
+        cb();
+      }
+    }
+
+    /* ========================================================
+       ২. কয়েন সিস্টেম
+    ======================================================== */
+    let userCoins = parseInt(localStorage.getItem('ludo_pro_coins')) || 1000;
+    let currentMatchEntry = 0;
+    let currentMatchPrize = 0;
+
+    function updateCoinDisplay() {
+      document.getElementById('lobbyCoins').innerText = userCoins.toLocaleString();
+      localStorage.setItem('ludo_pro_coins', userCoins);
+    }
+    updateCoinDisplay();
+
+    function claimDailyReward() {
+      const now = Date.now();
+      const lastClaim = parseInt(localStorage.getItem('ludo_last_daily_claim')) || 0;
+      const cooldown = 24 * 60 * 60 * 1000;
+
+      if (now - lastClaim < cooldown) {
+        const remaining = cooldown - (now - lastClaim);
+        const hours = Math.floor(remaining / (1000 * 60 * 60));
+        const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
+        showNotice('ALREADY CLAIMED!', `Next daily reward available in ${hours}h ${minutes}m.`, '⏳');
+        return;
+      }
+
+      userCoins += 500;
+      localStorage.setItem('ludo_last_daily_claim', now);
+      updateCoinDisplay();
+      playStarSound();
+      showNotice('DAILY GIFT UNLOCKED!', '500 Free Coins added to your wallet!', '🎁');
+    }
+
+    /* ========================================================
+       ৩. অডিও সাউন্ডস (Web Audio API)
+    ======================================================== */
+    let soundEnabled = true;
+    let audioCtx = null;
+
+    function getAudioCtx() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      return audioCtx;
+    }
+
+    function toggleAudio() {
+      soundEnabled = !soundEnabled;
+      const text = soundEnabled ? '🔊 Sound: ON' : '🔇 Sound: OFF';
+      document.getElementById('lobbySoundBtn').innerText = text;
+      document.getElementById('gameSoundBtn').innerText = soundEnabled ? '🔊' : '🔇';
+    }
+
+    function playDiceSound() {
+      if (!soundEnabled) return;
+      try {
+        const ctx = getAudioCtx();
+        for (let i = 0; i < 5; i++) {
+          setTimeout(() => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(160 + Math.random() * 150, ctx.currentTime);
+            gain.gain.setValueAtTime(0.08, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
+            osc.connect(gain); gain.connect(ctx.destination);
+            osc.start(); osc.stop(ctx.currentTime + 0.05);
+          }, i * 36);
+        }
+      } catch (e) {}
+    }
+
+    function playHopSound() {
+      if (!soundEnabled) return;
+      try {
+        const ctx = getAudioCtx();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(450, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(220, ctx.currentTime + 0.07);
+        gain.gain.setValueAtTime(0.18, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.07);
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.start(); osc.stop(ctx.currentTime + 0.07);
+      } catch (e) {}
+    }
+
+    function playStarSound() {
+      if (!soundEnabled) return;
+      try {
+        const ctx = getAudioCtx();
+        [523.25, 659.25, 783.99, 1046.50].forEach((freq, idx) => {
+          setTimeout(() => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, ctx.currentTime);
+            gain.gain.setValueAtTime(0.12, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.22);
+            osc.connect(gain); gain.connect(ctx.destination);
+            osc.start(); osc.stop(ctx.currentTime + 0.22);
+          }, idx * 60);
+        });
+      } catch (e) {}
+    }
+
+    function playKillSound() {
+      if (!soundEnabled) return;
+      try {
+        const ctx = getAudioCtx();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(320, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(60, ctx.currentTime + 0.25);
+        gain.gain.setValueAtTime(0.24, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.start(); osc.stop(ctx.currentTime + 0.25);
+      } catch (e) {}
+    }
+
+    function playHomeSound() {
+      if (!soundEnabled) return;
+      try {
+        const ctx = getAudioCtx();
+        [440, 554, 659, 880].forEach((freq, idx) => {
+          setTimeout(() => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, ctx.currentTime);
+            gain.gain.setValueAtTime(0.18, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.22);
+            osc.connect(gain); gain.connect(ctx.destination);
+            osc.start(); osc.stop(ctx.currentTime + 0.22);
+          }, idx * 75);
+        });
+      } catch (e) {}
+    }
+
+    function playWinSound() {
+      if (!soundEnabled) return;
+      try {
+        const ctx = getAudioCtx();
+        [523, 659, 783, 1046, 783, 1046, 1318].forEach((f, i) => {
+          setTimeout(() => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(f, ctx.currentTime);
+            gain.gain.setValueAtTime(0.2, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+            osc.connect(gain); gain.connect(ctx.destination);
+            osc.start(); osc.stop(ctx.currentTime + 0.35);
+          }, i * 110);
+        });
+      } catch (e) {}
+    }
+
+    /* ========================================================
+       ৪. ট্র্যাক ম্যাপিং ও রানওয়ে (৫২টি পুরো সেল)
+    ======================================================== */
+    const TRACK = [
+      {r:6, c:1, star:true}, {r:6, c:2}, {r:6, c:3}, {r:6, c:4}, {r:6, c:5},
+      {r:5, c:6}, {r:4, c:6}, {r:3, c:6}, {r:2, c:6, star:true}, {r:1, c:6}, {r:0, c:6},
+      {r:0, c:7},
+      {r:0, c:8}, {r:1, c:8, star:true}, {r:2, c:8}, {r:3, c:8}, {r:4, c:8}, {r:5, c:8},
+      {r:6, c:9}, {r:6, c:10}, {r:6, c:11}, {r:6, c:12, star:true}, {r:6, c:13}, {r:6, c:14},
+      {r:7, c:14},
+      {r:8, c:14}, {r:8, c:13, star:true}, {r:8, c:12}, {r:8, c:11}, {r:8, c:10}, {r:8, c:9},
+      {r:9, c:8}, {r:10, c:8}, {r:11, c:8}, {r:12, c:8, star:true}, {r:13, c:8}, {r:14, c:8},
+      {r:14, c:7},
+      {r:14, c:6}, {r:13, c:6, star:true}, {r:12, c:6}, {r:11, c:6}, {r:10, c:6}, {r:9, c:6},
+      {r:8, c:5}, {r:8, c:4}, {r:8, c:3}, {r:8, c:2, star:true}, {r:8, c:1}, {r:8, c:0},
+      {r:7, c:0},
+      {r:6, c:0}
+    ];
+
+    const RUNWAYS = {
+      red: [{r:7,c:1},{r:7,c:2},{r:7,c:3},{r:7,c:4},{r:7,c:5}],
+      blue: [{r:1,c:7},{r:2,c:7},{r:3,c:7},{r:4,c:7},{r:5,c:7}],
+      yellow: [{r:7,c:13},{r:7,c:12},{r:7,c:11},{r:7,c:10},{r:7,c:9}],
+      green: [{r:13,c:7},{r:12,c:7},{r:11,c:7},{r:10,c:7},{r:9,c:7}]
+    };
+
+    const START_INDICES = { red: 0, blue: 13, yellow: 26, green: 39 };
+
+    function buildBoard() {
+      const board = document.getElementById('board');
+      for (let r = 0; r < 15; r++) {
+        for (let c = 0; c < 15; c++) {
+          if ((r < 6 && c < 6) || (r < 6 && c > 8) || (r > 8 && c < 6) || (r > 8 && c > 8)) continue;
+          if (r >= 6 && r <= 8 && c >= 6 && c <= 8) continue;
+
+          const cell = document.createElement('div');
+          cell.className = 'c';
+          cell.id = `c_${r}_${c}`;
+          cell.style.gridRow = r + 1;
+          cell.style.gridColumn = c + 1;
+
+          if (r === 7 && c >= 1 && c <= 5) cell.classList.add('path-red');
+          if (c === 7 && r >= 1 && r <= 5) cell.classList.add('path-blue');
+          if (r === 7 && c >= 9 && c <= 13) cell.classList.add('path-yellow');
+          if (c === 7 && r >= 9 && r <= 13) cell.classList.add('path-green');
+
+          if (r === 6 && c === 1) cell.classList.add('path-red');
+          if (r === 1 && c === 8) cell.classList.add('path-blue');
+          if (r === 8 && c === 13) cell.classList.add('path-yellow');
+          if (r === 13 && c === 6) cell.classList.add('path-green');
+
+          const isStar = TRACK.some(t => t.r === r && t.c === c && t.star);
+          if (isStar) {
+            const starEl = document.createElement('div');
+            starEl.className = 'star-bg';
+            starEl.innerText = '★';
+            cell.appendChild(starEl);
+          }
+
+          const tokenContainer = document.createElement('div');
+          tokenContainer.className = 'token-container';
+          tokenContainer.id = `tc_${r}_${c}`;
+          cell.appendChild(tokenContainer);
+
+          board.appendChild(cell);
+        }
+      }
+    }
+
+    /* ========================================================
+       ৫. গেম স্টেট ও ভেরিয়েবল
+    ======================================================== */
+    let activePlayers = ['red', 'green'];
+    let currentMode = '2P';
+    let currentTurn = 'red';
+    let diceValue = 6;
+    let isRolling = false;
+    let waitingForMove = false;
+    let isAnimating = false;
+
+    const tokens = {
+      R0: { id: 'R0', player: 'red', step: -1 }, R1: { id: 'R1', player: 'red', step: -1 },
+      R2: { id: 'R2', player: 'red', step: -1 }, R3: { id: 'R3', player: 'red', step: -1 },
+
+      G0: { id: 'G0', player: 'green', step: -1 }, G1: { id: 'G1', player: 'green', step: -1 },
+      G2: { id: 'G2', player: 'green', step: -1 }, G3: { id: 'G3', player: 'green', step: -1 },
+
+      Y0: { id: 'Y0', player: 'yellow', step: -1 }, Y1: { id: 'Y1', player: 'yellow', step: -1 },
+      Y2: { id: 'Y2', player: 'yellow', step: -1 }, Y3: { id: 'Y3', player: 'yellow', step: -1 },
+
+      B0: { id: 'B0', player: 'blue', step: -1 }, B1: { id: 'B1', player: 'blue', step: -1 },
+      B2: { id: 'B2', player: 'blue', step: -1 }, B3: { id: 'B3', player: 'blue', step: -1 }
+    };
+
+    const pipMap = {
+      1: [5], 2: [1, 9], 3: [1, 5, 9],
+      4: [1, 3, 7, 9], 5: [1, 3, 5, 7, 9], 6: [1, 3, 4, 6, 7, 9]
+    };
+
+    function setDiceFace(player, val) {
+      const pfx = player[0];
+      for (let i = 1; i <= 9; i++) {
+        const el = document.getElementById(`${pfx}d${i}`);
+        if (el) el.style.visibility = 'hidden';
+      }
+      if (pipMap[val]) {
+        pipMap[val].forEach(p => {
+          const el = document.getElementById(`${pfx}d${p}`);
+          if (el) el.style.visibility = 'visible';
+        });
+      }
+    }
+
+    function getTokensSnapshot() {
+      const snap = {};
+      for (let id in tokens) {
+        snap[id] = tokens[id].step;
+      }
+      return snap;
+    }
+
+    function applyTokensSnapshot(snap) {
+      if (!snap) return;
+      for (let id in snap) {
+        if (tokens[id]) {
+          tokens[id].step = snap[id];
+        }
+      }
+    }
+
+    function getNextPlayer() {
+      const idx = activePlayers.indexOf(currentTurn);
+      return activePlayers[(idx + 1) % activePlayers.length];
+    }
+
+    function startLudoGame(mode, entryFee, prizeMoney) {
+      if (userCoins < entryFee) {
+        showNotice('NOT ENOUGH COINS!', `You need 🪙 ${entryFee} coins to play this match.`, '🪙');
+        return;
+      }
+
+      userCoins -= entryFee;
+      updateCoinDisplay();
+
+      currentMatchEntry = entryFee;
+      currentMatchPrize = prizeMoney;
+      document.getElementById('matchPotVal').innerText = prizeMoney.toLocaleString();
+
+      currentMode = mode;
+      document.getElementById('lobbyScreen').style.display = 'none';
+      document.getElementById('gameScreen').style.display = 'flex';
+
+      const cardYellow = document.getElementById('card-yellow');
+      const cardBlue = document.getElementById('card-blue');
+      const greenIcon = document.getElementById('av-green-icon');
+
+      if (mode === '2P') {
+        activePlayers = ['red', 'green'];
+        document.getElementById('name-red').innerText = 'PLAYER 1 (RED)';
+        document.getElementById('name-green').innerText = 'PLAYER 2 (GREEN)';
+        if (greenIcon) greenIcon.innerText = '👥';
+        cardYellow.classList.add('hidden');
+        cardBlue.classList.add('hidden');
+      } else if (mode === '3P') {
+        activePlayers = ['red', 'green', 'yellow'];
+        document.getElementById('name-red').innerText = 'RED';
+        document.getElementById('name-green').innerText = 'GREEN';
+        document.getElementById('name-yellow').innerText = 'YELLOW';
+        if (greenIcon) greenIcon.innerText = '👥';
+        cardYellow.classList.remove('hidden');
+        cardBlue.classList.add('hidden');
+      } else if (mode === '4P') {
+        activePlayers = ['red', 'blue', 'yellow', 'green'];
+        document.getElementById('name-green').innerText = 'GREEN';
+        if (greenIcon) greenIcon.innerText = '👥';
+        cardYellow.classList.remove('hidden');
+        cardBlue.classList.remove('hidden');
+      } else if (mode === 'AI') {
+        activePlayers = ['red', 'green'];
+        document.getElementById('name-red').innerText = 'YOU (RED)';
+        document.getElementById('name-green').innerText = 'ROBOT 🤖';
+        if (greenIcon) greenIcon.innerText = '🤖';
+        cardYellow.classList.add('hidden');
+        cardBlue.classList.add('hidden');
+      }
+
+      resetBoardState();
+    }
+
+    function confirmExitGame() {
+      document.getElementById('exitConfirmModal').style.display = 'flex';
+    }
+    function closeExitModal() {
+      document.getElementById('exitConfirmModal').style.display = 'none';
+    }
+    function forfeitGame() {
+      closeExitModal();
+      if (currentMode === 'online') {
+        broadcastNet({ type: 'FORFEIT', player: myColor });
+      }
+      returnToLobby();
+      showNotice('MATCH FORFEITED!', 'You exited the game.', '⚠️');
+    }
+
+    function returnToLobby() {
+      document.getElementById('winModal').style.display = 'none';
+      document.getElementById('gameScreen').style.display = 'none';
+      document.getElementById('lobbyScreen').style.display = 'flex';
+      stopConfetti();
+      cleanupNetwork();
+      resetBoardState();
+    }
+
+    function showRuleModal() { document.getElementById('rulesModal').style.display = 'flex'; }
+    function closeRulesModal() { document.getElementById('rulesModal').style.display = 'none'; }
+
+    /* ========================================================
+       ৬. ক্লাউড সার্ভার ইঞ্জিন (WSS MQTT)
+    ======================================================== */
+    let mqttClient = null;
+    let isHost = false;
+    let myColor = 'red';
+    let onlineTargetCount = 2;
+    let currentRoomCode = '';
+    let myClientId = 'cli_' + Math.random().toString(36).substring(2, 9);
+    let connectedClients = [];
+    let joinTimeoutTimer = null;
+
+    const MQTT_BROKER = 'wss://broker.emqx.io:8084/mqtt';
+
+    function setOnlineTargetCount(count) {
+      onlineTargetCount = count;
+      document.getElementById('btnMode2P').classList.toggle('active', count === 2);
+      document.getElementById('btnMode3P').classList.toggle('active', count === 3);
+    }
+
+    function openOnlineSubModal() { document.getElementById('onlineModal').style.display = 'flex'; }
+    function closeOnlineModal() { document.getElementById('onlineModal').style.display = 'none'; }
+
+    function copyRoomCode() {
+      const code = document.getElementById('displayRoomCode').innerText;
+      navigator.clipboard.writeText(code).then(() => {
+        showNotice('COPIED!', `Room Code ${code} copied! Share it with friends.`, '📋');
+      });
+    }
+
+    function cancelRoomCreation() {
+      if (isHost && mqttClient && currentRoomCode) {
+        broadcastNet({ type: 'HOST_CANCELLED' });
+      }
+      cleanupNetwork();
+      document.getElementById('roomCodeModal').style.display = 'none';
+    }
+
+    function createOnlineRoom() {
+      if (userCoins < 250) {
+        showNotice('NOT ENOUGH COINS!', 'Online match requires 🪙 250 coins.', '🪙');
+        return;
+      }
+      cleanupNetwork();
+
+      isHost = true;
+      myColor = 'red';
+      currentRoomCode = Math.floor(1000 + Math.random() * 9000).toString();
+      connectedClients = [{ id: myClientId, color: 'red' }];
+
+      document.getElementById('roomModalTitle').innerText = 'Room Created!';
+      document.getElementById('displayRoomCode').innerText = currentRoomCode;
+      document.getElementById('waitingStatusText').innerText = `Connecting to Server...`;
+      document.getElementById('roomCodeModal').style.display = 'flex';
+      closeOnlineModal();
+
+      mqttClient = mqtt.connect(MQTT_BROKER, {
+        clientId: myClientId,
+        clean: true,
+        connectTimeout: 5000
+      });
+
+      mqttClient.on('connect', () => {
+        const topic = `ludo_king_pro_v2/room/${currentRoomCode}/#`;
+        mqttClient.subscribe(topic, (err) => {
+          if (!err) {
+            document.getElementById('waitingStatusText').innerText = `Waiting for players (1/${onlineTargetCount})...`;
+          }
+        });
+      });
+
+      mqttClient.on('message', (topic, message) => {
+        handleIncomingNetworkMessage(message);
+      });
+
+      mqttClient.on('error', (err) => {
+        console.error("MQTT Error: ", err);
+        showNotice('SERVER ERROR', 'Could not connect to online server. Try again!', '⚠️');
+        cancelRoomCreation();
+      });
+    }
+
+    function joinOnlineRoom() {
+      if (userCoins < 250) {
+        showNotice('NOT ENOUGH COINS!', 'Online match requires 🪙 250 coins.', '🪙');
+        return;
+      }
+      const code = document.getElementById('joinCodeInput').value.trim();
+      if (!code || code.length < 4) {
+        showNotice('ROOM CODE REQUIRED', 'Please enter a valid 4-digit room ID.', '⚠️');
+        return;
+      }
+
+      cleanupNetwork();
+      isHost = false;
+      currentRoomCode = code;
+
+      document.getElementById('roomModalTitle').innerText = 'Joining Room...';
+      document.getElementById('displayRoomCode').innerText = currentRoomCode;
+      document.getElementById('waitingStatusText').innerText = `Contacting Host...`;
+      document.getElementById('roomCodeModal').style.display = 'flex';
+      closeOnlineModal();
+
+      mqttClient = mqtt.connect(MQTT_BROKER, {
+        clientId: myClientId,
+        clean: true,
+        connectTimeout: 5000
+      });
+
+      mqttClient.on('connect', () => {
+        const roomTopic = `ludo_king_pro_v2/room/${currentRoomCode}/#`;
+        mqttClient.subscribe(roomTopic, (err) => {
+          if (!err) {
+            broadcastNet({
+              type: 'REQUEST_JOIN',
+              senderId: myClientId
+            });
+
+            clearTimeout(joinTimeoutTimer);
+            joinTimeoutTimer = setTimeout(() => {
+              if (document.getElementById('roomCodeModal').style.display === 'flex') {
+                showNotice('ROOM NOT FOUND', 'Room does not exist or Host is inactive!', '❌');
+                cancelRoomCreation();
+              }
+            }, 8000);
+          }
+        });
+      });
+
+      mqttClient.on('message', (topic, message) => {
+        handleIncomingNetworkMessage(message);
+      });
+
+      mqttClient.on('error', () => {
+        showNotice('SERVER ERROR', 'Unable to reach the game server.', '⚠️');
+        cancelRoomCreation();
+      });
+    }
+
+    function handleIncomingNetworkMessage(raw) {
+      try {
+        const d = JSON.parse(raw.toString());
+        if (d.senderId === myClientId) return;
+
+        if (isHost && d.type === 'REQUEST_JOIN') {
+          if (connectedClients.some(c => c.id === d.senderId)) {
+            const existing = connectedClients.find(c => c.id === d.senderId);
+            broadcastNet({
+              type: 'WELCOME_PLAYER',
+              targetClient: d.senderId,
+              assignedColor: existing.color,
+              targetCount: onlineTargetCount,
+              totalJoined: connectedClients.length
+            });
+            return;
+          }
+
+          if (connectedClients.length >= onlineTargetCount) {
+            broadcastNet({ type: 'ROOM_FULL', targetClient: d.senderId });
+            return;
+          }
+
+          const colors = ['red', 'green', 'yellow'];
+          const assignedColor = colors[connectedClients.length];
+          connectedClients.push({ id: d.senderId, color: assignedColor });
+
+          broadcastNet({
+            type: 'WELCOME_PLAYER',
+            targetClient: d.senderId,
+            assignedColor: assignedColor,
+            targetCount: onlineTargetCount,
+            totalJoined: connectedClients.length
+          });
+
+          document.getElementById('waitingStatusText').innerText = `Waiting for players (${connectedClients.length}/${onlineTargetCount})...`;
+
+          if (connectedClients.length === onlineTargetCount) {
+            setTimeout(() => {
+              broadcastNet({
+                type: 'START_MATCH_NOW',
+                targetCount: onlineTargetCount
+              });
+              document.getElementById('roomCodeModal').style.display = 'none';
+              startOnlineGameInstance();
+            }, 500);
+          }
+        }
+        else if (!isHost && d.type === 'WELCOME_PLAYER' && d.targetClient === myClientId) {
+          clearTimeout(joinTimeoutTimer);
+          myColor = d.assignedColor;
+          onlineTargetCount = d.targetCount;
+          document.getElementById('waitingStatusText').innerText = `Joined! Waiting for match start (${d.totalJoined}/${d.targetCount})...`;
+        }
+        else if (d.type === 'START_MATCH_NOW') {
+          clearTimeout(joinTimeoutTimer);
+          document.getElementById('roomCodeModal').style.display = 'none';
+          startOnlineGameInstance();
+        }
+        else if (d.type === 'GAME_ROLL') {
+          handleRemoteRoll(d.player, d.diceValue);
+        }
+        else if (d.type === 'GAME_MOVE') {
+          handleRemoteMove(d);
+        }
+        else if (d.type === 'PASS_TURN') {
+          if (d.snapshot) applyTokensSnapshot(d.snapshot);
+          currentTurn = d.nextTurn;
+          waitingForMove = false;
+          isRolling = false;
+          isAnimating = false;
+          renderAllTokens();
+          updateTurnIndicators();
+        }
+        else if (d.type === 'FORFEIT') {
+          showWin(myColor);
+          showNotice('OPPONENT LEFT', 'Opponent left the match. You won!', '🏆');
+        }
+        else if (d.type === 'HOST_CANCELLED') {
+          showNotice('ROOM CLOSED', 'Host cancelled the room.', '⚠️');
+          cancelRoomCreation();
+        }
+        else if (d.type === 'ROOM_FULL' && d.targetClient === myClientId) {
+          clearTimeout(joinTimeoutTimer);
+          showNotice('ROOM FULL', 'This room is already full!', '⚠️');
+          cancelRoomCreation();
+        }
+      } catch (e) {
+        console.error("Message parse error: ", e);
+      }
+    }
+
+    function broadcastNet(data) {
+      if (mqttClient && mqttClient.connected && currentRoomCode) {
+        data.senderId = myClientId;
+        const topic = `ludo_king_pro_v2/room/${currentRoomCode}/game`;
+        mqttClient.publish(topic, JSON.stringify(data));
+      }
+    }
+
+    function startOnlineGameInstance() {
+      const mode = (onlineTargetCount === 3) ? '3P' : '2P';
+      const prize = (onlineTargetCount === 3) ? 750 : 500;
+      startLudoGame(mode, 250, prize);
+      currentMode = 'online';
+
+      document.getElementById('name-red').innerText = (myColor === 'red' ? 'YOU (RED)' : 'RED');
+      document.getElementById('name-green').innerText = (myColor === 'green' ? 'YOU (GREEN)' : 'GREEN');
+      if (onlineTargetCount === 3) {
+        document.getElementById('name-yellow').innerText = (myColor === 'yellow' ? 'YOU (YELLOW)' : 'YELLOW');
+      }
+
+      showNotice('MATCH LIVE!', `Game started! You are playing as ${myColor.toUpperCase()}`, '🎮');
+    }
+
+    function cleanupNetwork() {
+      clearTimeout(joinTimeoutTimer);
+      if (mqttClient) {
+        try { mqttClient.end(true); } catch(e){}
+        mqttClient = null;
+      }
+      connectedClients = [];
+      currentRoomCode = '';
+    }
+
+    /* ========================================================
+       ৭. ডাইস কন্ট্রোল ও AI
+    ======================================================== */
+    function handleDiceClick(player) {
+      if (player !== currentTurn || isRolling || waitingForMove || isAnimating) return;
+      if (currentMode === 'online' && player !== myColor) return;
+      if (currentMode === 'AI' && player === 'green') return;
+
+      triggerDiceRoll(player);
+    }
+
+    function triggerDiceRoll(player) {
+      if (isRolling || isAnimating) return;
+      playDiceSound();
+      isRolling = true;
+      const diceEl = document.getElementById(`dice-${player}`);
+      if (diceEl) diceEl.classList.add('rolling');
+
+      let c = 0;
+      const interval = setInterval(() => {
+        const rand = Math.floor(Math.random() * 6) + 1;
+        setDiceFace(player, rand);
+        c++;
+        if (c > 7) {
+          clearInterval(interval);
+          if (diceEl) diceEl.classList.remove('rolling');
+          diceValue = Math.floor(Math.random() * 6) + 1;
+          setDiceFace(player, diceValue);
+          isRolling = false;
+
+          if (currentMode === 'online') {
+            broadcastNet({
+              type: 'GAME_ROLL',
+              player: player,
+              diceValue: diceValue
+            });
+          }
+          checkLegalMoves();
+        }
+      }, 45);
+    }
+
+    function handleRemoteRoll(player, val) {
+      playDiceSound();
+      isRolling = true;
+      diceValue = val;
+      const diceEl = document.getElementById(`dice-${player}`);
+      if (diceEl) diceEl.classList.add('rolling');
+      
+      let c = 0;
+      const interval = setInterval(() => {
+        const rand = Math.floor(Math.random() * 6) + 1;
+        setDiceFace(player, rand);
+        c++;
+        if (c > 5) {
+          clearInterval(interval);
+          if (diceEl) diceEl.classList.remove('rolling');
+          setDiceFace(player, val);
+          isRolling = false;
+        }
+      }, 45);
+    }
+
+    function checkLegalMoves() {
+      const myTokens = Object.values(tokens).filter(t => t.player === currentTurn);
+      let legal = [];
+
+      myTokens.forEach(t => {
+        if (t.step === -1) {
+          if (diceValue === 6) legal.push(t);
+        } else if (t.step < 56) {
+          if (t.step + diceValue <= 56) legal.push(t);
+        }
+      });
+
+      if (legal.length === 0) {
+        setTimeout(() => {
+          const nextP = getNextPlayer();
+          if (currentMode === 'online') {
+            if (currentTurn === myColor) {
+              broadcastNet({
+                type: 'PASS_TURN',
+                player: currentTurn,
+                nextTurn: nextP,
+                snapshot: getTokensSnapshot()
+              });
+              passTurn();
+            }
+          } else {
+            passTurn();
+          }
+        }, 700);
+      } else {
+        waitingForMove = true;
+        highlightPlayableTokens(legal);
+
+        if (currentMode === 'AI' && currentTurn === 'green') {
+          setTimeout(() => executeAIMove(legal), 600);
+        } else if (legal.length === 1 && (currentMode !== 'online' || currentTurn === myColor)) {
+          setTimeout(() => {
+            if (waitingForMove && !isAnimating) {
+              executeMoveWithAnimation(legal[0].id, true);
+            }
+          }, 350);
+        }
+      }
+    }
+
+    function highlightPlayableTokens(legalList = null) {
+      document.querySelectorAll('.token').forEach(t => t.classList.remove('playable'));
+      if (!waitingForMove) return;
+
+      let legal = legalList;
+      if (!legal) {
+        const myTokens = Object.values(tokens).filter(t => t.player === currentTurn);
+        legal = myTokens.filter(t => {
+          if (t.step === -1) return diceValue === 6;
+          return (t.step < 56 && t.step + diceValue <= 56);
+        });
+      }
+
+      if (currentMode === 'online' && currentTurn !== myColor) return;
+      if (currentMode === 'AI' && currentTurn === 'green') return;
+
+      legal.forEach(t => {
+        const el = document.getElementById(`tok-${t.id}`);
+        if (el) el.classList.add('playable');
+      });
+    }
+
+    function executeAIMove(legalTokens) {
+      for (let t of legalTokens) {
+        if (t.step !== -1 && t.step + diceValue <= 50) {
+          const targetCoords = getCoords('green', t.step + diceValue);
+          if (targetCoords) {
+            const isStar = TRACK.some(tr => tr.r === targetCoords.r && tr.c === targetCoords.c && tr.star);
+            if (!isStar) {
+              const victim = Object.values(tokens).find(o => o.player === 'red' && o.step >= 0 && o.step <= 50 &&
+                getCoords('red', o.step)?.r === targetCoords.r && getCoords('red', o.step)?.c === targetCoords.c);
+              if (victim) {
+                executeMoveWithAnimation(t.id, true);
+                return;
+              }
+            }
+          }
+        }
+      }
+      const winning = legalTokens.find(t => t.step !== -1 && t.step + diceValue === 56);
+      if (winning) { executeMoveWithAnimation(winning.id, true); return; }
+
+      const openToken = legalTokens.find(t => t.step === -1);
+      if (openToken) { executeMoveWithAnimation(openToken.id, true); return; }
+
+      legalTokens.sort((a,b) => b.step - a.step);
+      executeMoveWithAnimation(legalTokens[0].id, true);
+    }
+
+    /* ========================================================
+       ৮. গুটি মুভমেন্ট ও পারফেক্ট সিঙ্ক
+    ======================================================== */
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+    function onTokenClicked(tokId) {
+      if (!waitingForMove || isAnimating || isRolling) return;
+      const tok = tokens[tokId];
+      if (!tok || tok.player !== currentTurn) return;
+      if (currentMode === 'online' && tok.player !== myColor) return;
+      if (currentMode === 'AI' && tok.player === 'green') return;
+
+      if (tok.step === -1 && diceValue !== 6) return;
+      if (tok.step !== -1 && tok.step + diceValue > 56) return;
+
+      executeMoveWithAnimation(tokId, true);
+    }
+
+    async function executeMoveWithAnimation(tokId, isLocal = true) {
+      if (isAnimating) return;
+      const tok = tokens[tokId];
+      if (!tok) return;
+
+      waitingForMove = false;
+      isAnimating = true;
+      document.querySelectorAll('.token').forEach(t => t.classList.remove('playable'));
+
+      const fromStep = tok.step;
+      let bonusTurn = (diceValue === 6);
+      let capturedId = null;
+
+      if (tok.step === -1) {
+        tok.step = 0;
+        playHopSound();
+        renderAllTokens();
+        const el = document.getElementById(`tok-${tok.id}`);
+        if (el) el.classList.add('hopping');
+        await sleep(180);
+        if (el) el.classList.remove('hopping');
+      } else {
+        const target = tok.step + diceValue;
+        while (tok.step < target && tok.step < 56) {
+          tok.step++;
+          playHopSound();
+          renderAllTokens();
+          const el = document.getElementById(`tok-${tok.id}`);
+          if (el) el.classList.add('hopping');
+          await sleep(140);
+          if (el) el.classList.remove('hopping');
+        }
+
+        if (tok.step === 56) {
+          playHomeSound();
+          bonusTurn = true;
+        }
+      }
+
+      // ক্যাপচার চেক (শুধু ট্র্যাকের ০ থেকে ৫০ ঘরের মধ্যে)
+      if (tok.step >= 0 && tok.step <= 50) {
+        const coords = getCoords(tok.player, tok.step);
+        if (coords) {
+          const isStar = TRACK.some(t => t.r === coords.r && t.c === coords.c && t.star);
+          if (isStar) {
+            playStarSound();
+          } else {
+            for (let otherId in tokens) {
+              const opp = tokens[otherId];
+              if (activePlayers.includes(opp.player) && opp.player !== tok.player && opp.step >= 0 && opp.step <= 50) {
+                const oppCoords = getCoords(opp.player, opp.step);
+                if (oppCoords && oppCoords.r === coords.r && oppCoords.c === coords.c) {
+                  opp.step = -1;
+                  capturedId = opp.id;
+                  playKillSound();
+                  bonusTurn = true;
+                  break;
+                }
+              }
+            }
+          }
+        }
+      }
+
+      renderAllTokens();
+
+      // জয়লাভ চেক
+      if (checkWinner(currentTurn)) {
+        isAnimating = false;
+        showWin(currentTurn);
+        if (currentMode === 'online' && isLocal) {
+          broadcastNet({
+            type: 'GAME_MOVE',
+            player: currentTurn,
+            tokId: tok.id,
+            diceValue: diceValue,
+            fromStep: fromStep,
+            toStep: tok.step,
+            capturedTokId: capturedId,
+            isBonus: bonusTurn,
+            nextTurn: currentTurn,
+            snapshot: getTokensSnapshot()
+          });
+        }
+        return;
+      }
+
+      const nextPlayer = bonusTurn ? currentTurn : getNextPlayer();
+
+      if (currentMode === 'online' && isLocal) {
+        broadcastNet({
+          type: 'GAME_MOVE',
+          player: currentTurn,
+          tokId: tok.id,
+          diceValue: diceValue,
+          fromStep: fromStep,
+          toStep: tok.step,
+          capturedTokId: capturedId,
+          isBonus: bonusTurn,
+          nextTurn: nextPlayer,
+          snapshot: getTokensSnapshot()
+        });
+      }
+
+      isAnimating = false;
+
+      if (bonusTurn) {
+        updateTurnIndicators(true);
+        if (currentMode === 'AI' && currentTurn === 'green') {
+          setTimeout(() => triggerDiceRoll('green'), 600);
+        }
+      } else {
+        currentTurn = nextPlayer;
+        updateTurnIndicators();
+        if (currentMode === 'AI' && currentTurn === 'green') {
+          setTimeout(() => triggerDiceRoll('green'), 600);
+        }
+      }
+    }
+
+    async function handleRemoteMove(data) {
+      isAnimating = true;
+      waitingForMove = false;
+      document.querySelectorAll('.token').forEach(t => t.classList.remove('playable'));
+
+      const tok = tokens[data.tokId];
+      if (tok) {
+        diceValue = data.diceValue;
+        setDiceFace(data.player, data.diceValue);
+
+        const diceEl = document.getElementById(`dice-${data.player}`);
+        if (diceEl) diceEl.classList.remove('rolling');
+
+        if (data.fromStep === -1) {
+          tok.step = 0;
+          playHopSound();
+          renderAllTokens();
+          await sleep(150);
+        } else {
+          while (tok.step < data.toStep && tok.step < 56) {
+            tok.step++;
+            playHopSound();
+            renderAllTokens();
+            await sleep(120);
+          }
+        }
+        tok.step = data.toStep;
+      }
+
+      // যদি অপোনেন্টের গুটি কাটা গিয়ে থাকে
+      if (data.capturedTokId && tokens[data.capturedTokId]) {
+        tokens[data.capturedTokId].step = -1;
+        playKillSound();
+      }
+
+      // সম্পূর্ণ বোর্ডের স্ন্যাপশট নিখুঁতভাবে সিঙ্ক করা
+      if (data.snapshot) {
+        applyTokensSnapshot(data.snapshot);
+      }
+
+      renderAllTokens();
+      isAnimating = false;
+
+      if (checkWinner(data.player)) {
+        showWin(data.player);
+        return;
+      }
+
+      currentTurn = data.nextTurn;
+      updateTurnIndicators(data.isBonus);
+    }
+
+    function getCoords(player, step) {
+      if (step < 0) return null;
+      if (step <= 50) {
+        const start = START_INDICES[player];
+        const idx = (start + step) % 52;
+        return TRACK[idx] || null;
+      }
+      if (step <= 55) {
+        const rw = RUNWAYS[player];
+        return rw ? rw[step - 51] : null;
+      }
+      return null;
+    }
+
+    /* ========================================================
+       ৯. সুরক্ষিত রেন্ডারিং (কখনো গুটি উধাও হবে না)
+    ======================================================== */
+    function renderAllTokens() {
+      try {
+        document.querySelectorAll('.token').forEach(e => e.remove());
+        document.querySelectorAll('.token-cluster').forEach(e => e.remove());
+
+        const cellMap = {};
+        const homeTokensCount = { red: [], green: [], yellow: [], blue: [] };
+
+        Object.values(tokens).forEach(tok => {
+          const el = document.createElement('div');
+          el.className = `token token-${tok.player}`;
+          el.id = `tok-${tok.id}`;
+          el.setAttribute('data-id', tok.id);
+          el.onclick = (e) => {
+            e.stopPropagation();
+            onTokenClicked(tok.id);
+          };
+
+          // গার্ড চেক: সুরক্ষিত সীমানা
+          if (tok.step <= -1) {
+            tok.step = -1;
+            const hole = document.getElementById(`hole-${tok.id}`);
+            if (hole) hole.appendChild(el);
+          } else if (tok.step >= 56) {
+            tok.step = 56;
+            homeTokensCount[tok.player].push(el);
+          } else {
+            const coords = getCoords(tok.player, tok.step);
+            if (coords) {
+              const cellKey = `${coords.r}_${coords.c}`;
+              if (!cellMap[cellKey]) cellMap[cellKey] = [];
+              cellMap[cellKey].push(el);
+            } else {
+              // ফলব্যাক: কোনোভাবেই যেন গুটি উধাও না হয়
+              tok.step = -1;
+              const hole = document.getElementById(`hole-${tok.id}`);
+              if (hole) hole.appendChild(el);
+            }
+          }
+        });
+
+        // চলমান গুটি বসানো
+        for (const [key, tokenList] of Object.entries(cellMap)) {
+          const [r, c] = key.split('_');
+          const container = document.getElementById(`tc_${r}_${c}`);
+          if (container) {
+            const cluster = document.createElement('div');
+            const count = Math.min(tokenList.length, 4);
+            cluster.className = `token-cluster token-count-${count}`;
+            tokenList.forEach(t => cluster.appendChild(t));
+            container.appendChild(cluster);
+          }
+        }
+
+        // পাকা ঘর (ট্রে ও লাইভ কাউন্টার)
+        ['red', 'green', 'yellow', 'blue'].forEach(p => {
+          const hList = homeTokensCount[p] || [];
+          const count = hList.length;
+
+          for (let i = 0; i < 4; i++) {
+            const slot = document.getElementById(`slot-${p}-${i}`);
+            if (slot) {
+              slot.innerHTML = '';
+              if (i < count) {
+                slot.appendChild(hList[i]);
+              }
+            }
+          }
+
+          const pill = document.getElementById(`pill-${p}`);
+          if (pill) {
+            pill.innerText = count === 4 ? '4/4 👑' : `${count}/4`;
+            pill.style.color = count > 0 ? '#facc15' : '#94a3b8';
+          }
+
+          const scoreCard = document.getElementById(`score-${p}`);
+          if (scoreCard) {
+            scoreCard.innerText = `🏡 HOME: ${count}/4`;
+            scoreCard.style.color = count > 0 ? '#facc15' : '#94a3b8';
+          }
+        });
+
+        if (waitingForMove) {
+          highlightPlayableTokens();
+        }
+      } catch (err) {
+        console.error("Critical rendering guard caught error:", err);
+      }
+    }
+
+    function passTurn() {
+      waitingForMove = false;
+      currentTurn = getNextPlayer();
+      updateTurnIndicators();
+
+      if (currentMode === 'AI' && currentTurn === 'green') {
+        setTimeout(() => triggerDiceRoll('green'), 650);
+      }
+    }
+
+    function updateTurnIndicators(isBonus = false) {
+      activePlayers.forEach(p => {
+        const card = document.getElementById(`card-${p}`);
+        const dice = document.getElementById(`dice-${p}`);
+        const status = document.getElementById(`st-${p}`);
+        const isMy = (currentTurn === p);
+
+        if (card) card.classList.toggle('active-turn', isMy);
+        if (dice) {
+          if (currentMode === 'AI' && p === 'green') {
+            dice.classList.toggle('disabled', true);
+          } else if (currentMode === 'online') {
+            dice.classList.toggle('disabled', !isMy || p !== myColor);
+          } else {
+            dice.classList.toggle('disabled', !isMy);
+          }
+        }
+        if (status) {
+          status.innerText = isMy ? (isBonus ? 'BONUS ROLL!' : 'YOUR TURN') : 'WAITING';
+        }
+      });
+    }
+
+    function checkWinner(player) {
+      return Object.values(tokens).filter(t => t.player === player).every(t => t.step === 56);
+    }
+
+    function showWin(player) {
+      playWinSound();
+      startConfetti();
+
+      const didIWin = (player === 'red' && currentMode !== 'online') || (currentMode === 'online' && player === myColor);
+      if (didIWin) {
+        userCoins += currentMatchPrize;
+        updateCoinDisplay();
+        document.getElementById('prizeWonDisplay').innerText = `+🪙 ${currentMatchPrize.toLocaleString()} COINS`;
+      } else {
+        document.getElementById('prizeWonDisplay').innerText = `🪙 0 COINS (Defeat)`;
+      }
+
+      const modal = document.getElementById('winModal');
+      const txt = document.getElementById('winnerText');
+      const names = { red: 'RED PLAYER', green: 'GREEN PLAYER', yellow: 'YELLOW PLAYER', blue: 'BLUE PLAYER' };
+      txt.innerText = `🎉 ${names[player]} WINS!`;
+      txt.style.color = `var(--${player})`;
+      modal.style.display = 'flex';
+    }
+
+    function resetBoardState() {
+      Object.values(tokens).forEach(t => t.step = -1);
+      currentTurn = 'red';
+      waitingForMove = false;
+      isRolling = false;
+      isAnimating = false;
+      ['red','green','yellow','blue'].forEach(p => setDiceFace(p, 6));
+      renderAllTokens();
+      updateTurnIndicators();
+    }
+
+    /* কনফেটি অ্যানিমেশন */
+    let confettiId;
+    const cvs = document.getElementById('confetti');
+    const ctx = cvs.getContext('2d');
+    let confettis = [];
+
+    function setupCanvas() { cvs.width = window.innerWidth; cvs.height = window.innerHeight; }
+    window.addEventListener('resize', setupCanvas);
+    setupCanvas();
+
+    function startConfetti() {
+      confettis = [];
+      for (let i = 0; i < 120; i++) {
+        confettis.push({
+          x: Math.random() * cvs.width,
+          y: Math.random() * cvs.height - cvs.height,
+          s: Math.random() * 8 + 4,
+          vy: Math.random() * 4 + 3,
+          c: ['#ef4444', '#22c55e', '#3b82f6', '#eab308', '#facc15'][Math.floor(Math.random() * 5)],
+          rot: Math.random() * 360,
+          vrot: Math.random() * 8 - 4
+        });
+      }
+      renderConfetti();
+    }
+
+    function renderConfetti() {
+      ctx.clearRect(0, 0, cvs.width, cvs.height);
+      confettis.forEach(c => {
+        c.y += c.vy;
+        c.rot += c.vrot;
+        if (c.y > cvs.height) c.y = -10;
+        ctx.save();
+        ctx.translate(c.x, c.y);
+        ctx.rotate((c.rot * Math.PI) / 180);
+        ctx.fillStyle = c.c;
+        ctx.fillRect(-c.s / 2, -c.s / 2, c.s, c.s);
+        ctx.restore();
+      });
+      confettiId = requestAnimationFrame(renderConfetti);
+    }
+
+    function stopConfetti() {
+      cancelAnimationFrame(confettiId);
+      ctx.clearRect(0, 0, cvs.width, cvs.height);
+    }
+
+    // গেম শুরু
+    buildBoard();
+    resetBoardState();
+  </script>
+</body>
+</html>
